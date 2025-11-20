@@ -1,3 +1,0 @@
-/home/tim-dxt/Desktop/motor_vesc/build/CMakeFiles/motor_test.dir
-/home/tim-dxt/Desktop/motor_vesc/build/CMakeFiles/edit_cache.dir
-/home/tim-dxt/Desktop/motor_vesc/build/CMakeFiles/rebuild_cache.dir
