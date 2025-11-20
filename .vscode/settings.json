@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "stdint.h": "c",
-        "algorithm": "c",
-        "can.h": "c",
-        "common.h": "c"
-    }
-}
