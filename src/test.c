@@ -12,8 +12,8 @@
 #include "math.h"
 // #include <linux/can.h>
 
-#define MOTOR_1_ID 9
-#define MOTOR_2_ID 0x206
+#define MOTOR_1_ID 1
+#define MOTOR_2_ID 2
 
 #define CAN_EFF_FLAG 0x80000000U /* EFF/SFF is set in the MSB */
 #define CAN_RTR_FLAG 0x40000000U /* remote transmission request */
@@ -80,43 +80,43 @@ int vsec_pack_current(uint8_t *data, float current)
 
 int motor_enable(motor_mit *motor, int enable)
 {
-    pthread_spin_lock(&motor->lock);
+    // pthread_spin_lock(&motor->lock);
     motor->motor_enable = enable;
-    pthread_spin_unlock(&motor->lock);
+    // pthread_spin_unlock(&motor->lock);
  
     return 0;
 }
 
 int set_motor_tor(motor_mit *motor, float tor)
 {
-    pthread_spin_lock(&motor->lock);
+    // pthread_spin_lock(&motor->lock);
     motor->control.t_ff = tor;
-    pthread_spin_unlock(&motor->lock);
+    // pthread_spin_unlock(&motor->lock);
 
     return 0;
 }
 
 int set_vesc_tor(motor_mit *motor, float tor)
 {
-    pthread_spin_lock(&motor->lock);
+    // pthread_spin_lock(&motor->lock);
     motor->control.t_ff = tor;
-    pthread_spin_unlock(&motor->lock);
+    // pthread_spin_unlock(&motor->lock);
 
     return 0;
 }
 
 int set_motor_vel(motor_mit *motor, float vel)
 {
-    pthread_spin_lock(&motor->lock);
+    // pthread_spin_lock(&motor->lock);
     motor->control.v_des = vel;
-    pthread_spin_unlock(&motor->lock);
+    // pthread_spin_unlock(&motor->lock);
 
     return 0;
 }
 
 int motor_test_can_call(void *arg, void *arg2, char *buf, int len)
 {
-    return 0;
+    // return 0;
     // printf("can recv\n");
 
     can_frame *frame = (can_frame *)buf;
@@ -137,7 +137,7 @@ int motor_test_can_call(void *arg, void *arg2, char *buf, int len)
     }
     else
     {
-        //printf("id err:%d\n", frame->data[0]);
+        printf("%c", frame->data[0]);
         return 0;
     }
 
@@ -150,11 +150,12 @@ int motor_test_can_call(void *arg, void *arg2, char *buf, int len)
     v = uint_to_float(v_int, -motor->param.max_vel, motor->param.max_vel, 12);
     t = uint_to_float(i_int, -motor->param.max_torque, motor->param.max_torque, 12);
 
-pthread_spin_lock(&motor->lock);
+// pthread_spin_lock(&motor->lock);
     motor->state.p = p;
     motor->state.v = v;
     motor->state.t = t;
-pthread_spin_unlock(&motor->lock);
+
+// pthread_spin_unlock(&motor->lock);
 
     return 0;
 
@@ -171,17 +172,17 @@ void *commu_thread(void *arg)
         //usleep(1000*10);
         delay_ms(10);
 
-        motor_mit *motor = &tmp[0];
+        // motor_mit *motor = &tmp[0];
 
-        pthread_spin_lock(&motor->lock);
+        // pthread_spin_lock(&motor->lock);
 
-        vsec_pack_current(motor->can_tx.data, motor->control.t_ff);
+        // vsec_pack_current(motor->can_tx.data, motor->control.t_ff);
 
-        can_commu_send(motor->can, (char *)&motor->can_tx, sizeof(can_frame));
+        // can_commu_send(motor->can, (char *)&motor->can_tx, sizeof(can_frame));
 
-        pthread_spin_unlock(&motor->lock);
+        // pthread_spin_unlock(&motor->lock);
 
-        continue;
+        // continue;
 
 
         for (size_t i = 0; i < MOTOR_NUM; i++)
@@ -190,16 +191,18 @@ void *commu_thread(void *arg)
 
             if (motor->protocol == 0)
             {
-                pthread_spin_lock(&motor->lock);
+                // pthread_spin_lock(&motor->lock);
 
                 if(!enable_last[i] && motor->motor_enable)
                 {
                     //enter;
+                    printf("enable\n");
                     EnterMotorMode(motor->can_tx.data);
                 }
                 else if(enable_last[i] && !motor->motor_enable)
                 {
                     //exit
+                    printf("disenable\n");
                     ExitMotorMode(motor->can_tx.data);
                 }
                 else
@@ -212,14 +215,14 @@ void *commu_thread(void *arg)
                 
                 can_commu_send(motor->can, (char *)&motor->can_tx, sizeof(can_frame));
                 
-                pthread_spin_unlock(&motor->lock);
+                // pthread_spin_unlock(&motor->lock);
                 
                 enable_last[i] = motor->motor_enable;
                 usleep(1000*1);
             }
             else if (motor->protocol == 1)
             {
-                pthread_spin_lock(&motor->lock);
+                // pthread_spin_lock(&motor->lock);
 
                 if(!enable_last[i] && motor->motor_enable)
                 {
@@ -240,7 +243,55 @@ void *commu_thread(void *arg)
                 
                 can_commu_send(motor->can, (char *)&motor->can_tx, sizeof(can_frame));
                 
-                pthread_spin_unlock(&motor->lock);
+                // pthread_spin_unlock(&motor->lock);
+                
+                enable_last[i] = motor->motor_enable;
+                usleep(1000*1);
+            }
+            else if (motor->protocol == 2)
+            {
+                // pthread_spin_lock(&motor->lock);
+
+                if(!enable_last[i] && motor->motor_enable)
+                {
+                    //enter;
+                    EnterMotorMode(motor->can_tx.data);
+                }
+                else if(enable_last[i] && !motor->motor_enable)
+                {
+                    //exitv
+                    ExitMotorMode(motor->can_tx.data);
+                }
+                else
+                {
+                    if(motor->motor_enable){
+                        float KT = 0.07f;
+                        float GR = (7056.f/361.f);
+
+                        g_motor[1].pid.input = motor->state.v;
+                        pid_caculate(&g_motor[1].pid);
+                        // printf("%.2f, %.2f, %.2f, %.2f\n", g_motor[1].pid.error, g_motor[1].pid.output, g_motor[1].pid.input, g_motor[1].pid.des);
+                        // printf("%.2f\n", g_motor[1].pid.output);
+
+                        motor->control.t_ff = g_motor[1].pid.output * GR * KT;
+                    }else{
+                        motor->control.t_ff = 0;
+
+                        // g_motor[1].pid.input = motor->state.v;
+                        // pid_caculate(&g_motor[1].pid);
+                        // printf("%.2f\n", g_motor[1].pid.output);
+                    }
+
+                    pack_cmd_new(motor->can_tx.data, &motor->control, 
+                    motor->param.max_pos, -motor->param.max_pos, 
+                    motor->param.max_vel, -motor->param.max_vel, 
+                    motor->param.max_torque, -motor->param.max_torque);
+
+                }
+                
+                can_commu_send(motor->can, (char *)&motor->can_tx, sizeof(can_frame));
+                
+                // pthread_spin_unlock(&motor->lock);
                 
                 enable_last[i] = motor->motor_enable;
                 usleep(1000*1);
@@ -264,33 +315,33 @@ int motor_test_init()
 
     g_motor[0].param.max_pos = 12.5;
     g_motor[0].param.max_vel = 45;
-    g_motor[0].param.max_torque = 60;
+    g_motor[0].param.max_torque = 160;
     g_motor[0].protocol = 0;
 
     g_motor[1].param.max_pos = 12.5;
     g_motor[1].param.max_vel = 45;
-    g_motor[1].param.max_torque = 60;
-    g_motor[1].protocol = 1;
+    g_motor[1].param.max_torque = 160;
+    g_motor[1].protocol = 0;
 
-    g_motor[0].can = can_commu_init("can5", "can5", 0, 0xffff, motor_test_can_call, (void *)g_motor, NULL, 0);
+    g_motor[0].can = can_commu_init("can0", "can0", 0, 0xffff, motor_test_can_call, (void *)g_motor, NULL, 0);
     if (!g_motor[0].can)
         return -1;
 
     g_motor[1].can = g_motor[0].can;
 
+    pid_zero(&g_motor[1].pid);
 
-
-
-    // pid_zero(&g_motor[0].pid);
-
-    // g_motor[0].pid.kp = 0.3;
-    // g_motor[0].pid.ki = 0.3;
-    // g_motor[0].pid.kd = 0.3;
-    // g_motor[0].pid.output_max = 0;
+    g_motor[1].control.kp = 0.0;
+    g_motor[1].control.kd = 0.0;
+    g_motor[1].pid.kp = 1.5;
+    g_motor[1].pid.ki = 0.25;
+    g_motor[1].pid.output_max = 90.0;
+    g_motor[1].pid.error_all_max = g_motor[1].pid.output_max / g_motor[1].pid.ki;
+    g_motor[1].pid.error_max = 10.0;
 
     pthread_spin_init(&g_motor[0].lock, 0);
-    g_motor[0].can_tx.can_dlc = 4;
-    g_motor[0].can_tx.can_id = 0x11A | CAN_EFF_FLAG;
+    g_motor[0].can_tx.can_dlc = 8;
+    g_motor[0].can_tx.can_id = MOTOR_1_ID;
 
     pthread_spin_init(&g_motor[1].lock, 0);
     g_motor[1].can_tx.can_dlc = 8;
@@ -324,6 +375,23 @@ return 0;
 }
 FINSH_FUNCTION_EXPORT(s_torq, s_torq);
 
+int s2_torq(int argc, char *argv[])
+{
+    float tor =0;
+    if (argc == 2)
+    {
+        tor = atof(argv[1]);
+    }
+
+// pthread_spin_lock(&g_motor[0].lock);
+//     g_motor[0].control.t_ff = tor;
+set_motor_tor(&g_motor[1], tor);
+// pthread_spin_unlock(&g_motor[0].lock);
+
+return 0;
+}
+FINSH_FUNCTION_EXPORT(s2_torq, s2_torq);
+
 int s_vel(int argc, char *argv[])
 {
     float vel =0;
@@ -340,6 +408,21 @@ set_motor_vel(&g_motor[1], vel);
 return 0;
 }
 FINSH_FUNCTION_EXPORT(s_vel, s_vel);
+
+int s_pid_vel(int argc, char *argv[])
+{
+    float vel =0;
+    if (argc == 2)
+    {
+        vel = atof(argv[1]);
+    }
+
+    g_motor[1].pid.des = vel;
+    // g_motor[1].control.v_des = vel;
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(s_pid_vel, s_pid_vel);
 
 int m_enable(int argc, char *argv[])
 {
@@ -387,11 +470,11 @@ int p_info(int argc, char *argv[])
     printf("torque:%.3f, speed:%.3f, power:%.3f\n", torque, speed, power);
 
 // pthread_spin_lock(&g_motor[0].lock);
-//     printf("motor pos:%.5f, vel:%.5f, tor:%.5f\n", g_motor[0].state.p, g_motor[0].state.v, g_motor[0].state.t);
+    printf("motor pos:%.5f, vel:%.5f, tor:%.5f\n", g_motor[0].state.p, g_motor[0].state.v, g_motor[0].state.t);
 // pthread_spin_unlock(&g_motor[0].lock);
 
 // pthread_spin_lock(&g_motor[1].lock);
-//     printf("motor pos:%.5f, vel:%.5f, tor:%.5f\n", g_motor[1].state.p, g_motor[1].state.v, g_motor[1].state.t);
+    printf("motor pos:%.5f, vel:%.5f, tor:%.5f\n", g_motor[1].state.p, g_motor[1].state.v, g_motor[1].state.t);
 // pthread_spin_unlock(&g_motor[1].lock);
 
 return 0;
@@ -426,6 +509,99 @@ int tor_test(int argc, char *argv[])
     return 0;
 }
 FINSH_FUNCTION_EXPORT(tor_test, tor_test);
+
+int ttor_test_new(int argc, char *argv[])
+{
+    float torque,speed,power;
+    float KT = 0.07f;
+    float GR = (7056.f/361.f);
+
+    motor_enable( &g_motor[0], 1);
+    // motor_enable( &g_motor[1], 1);
+
+    // s_pid_vel(&g_motor[1], 10);
+
+    usleep(1000*200);
+ 
+    printf("current, torque\n");
+
+    float current = 0;
+    int times = 1000 * 2;
+    for (int i = 0; i < times; i++)
+    {
+        current += (90.0f * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        set_motor_tor(&g_motor[0], current*KT*GR);
+        usleep(1000*10);
+        get_dy200_info(&torque, &speed, &power);
+        if(i <= (times/2) && i >=50){
+            printf("%.3f, %.3f\n", current, torque);
+        }
+    }
+
+    // s_pid_vel(&g_motor[1], 0);
+
+    motor_enable( &g_motor[0], 0);
+    // motor_enable( &g_motor[1], 0);
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(ttor_test_new, ttor_test_new);
+
+int a_max_speed_tor_test(int argc, char *argv[])
+{
+    float torque,speed,power;
+    float KT = 0.07;
+    float GR = (7056.f/361.f);
+
+    motor_enable( &g_motor[0], 1);
+    motor_enable( &g_motor[1], 1);
+
+    printf("torque, speed\n");
+
+    float current1 = 0;
+    float current2 = 0;
+    float target_current = 10.0f;
+    int times = 1000 * 2;
+
+    for (int i = 0; i < times / 2; i++)
+    {
+        current1 += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        set_motor_tor(&g_motor[0], current1*KT*GR);
+        usleep(1000*10);
+    }
+
+    printf("%.3f\n", current1);
+
+    for (int i = 0; i < times; i++)
+    {
+        current2 += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        set_motor_tor(&g_motor[1], current2*KT*GR);
+        usleep(1000*10);
+        get_dy200_info(&torque, &speed, &power);
+        if(i <= (times/2) && i >=50){
+            printf("%.3f, %.3f\n", torque, speed);
+        }
+
+        // if(i <= (times/2)){
+        //     printf("current2%.3f\n", current2);
+        // }
+    }
+
+    for (int i = 0; i < times / 2; i++)
+    {
+        current1 -= (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        set_motor_tor(&g_motor[0], current1*KT*GR);
+        usleep(1000*10);
+    }
+
+    printf("%.3f\n", current1);
+
+    // motor_enable( &g_motor[0], 0);
+    motor_enable( &g_motor[1], 0);
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(a_max_speed_tor_test, a_max_speed_tor_test);
 
 int vesc_tor_test(int argc, char *argv[])
 {

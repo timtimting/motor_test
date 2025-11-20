@@ -10,7 +10,7 @@ float pid_limit(float val, float max)
     if (val < -max)
         return -max;
     
-    return max;
+    return val;
 }
 
 int pid_zero(pid_control *pid)
