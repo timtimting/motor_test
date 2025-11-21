@@ -315,7 +315,7 @@ int motor_test_init()
 
     g_motor[0].param.max_pos = 12.5;
     g_motor[0].param.max_vel = 45;
-    g_motor[0].param.max_torque = 160;
+    g_motor[0].param.max_torque = 80;  // 根据测试电机修改 
     g_motor[0].protocol = 0;
 
     g_motor[1].param.max_pos = 12.5;
@@ -482,6 +482,21 @@ return 0;
 }
 FINSH_FUNCTION_EXPORT(p_info, p_info);
 
+int change_protocol(int argc, char *argv[])
+{
+    if (argc != 3) {
+        return -1;
+    }
+    if (atoi(argv[1]) == 0){
+        g_motor[0].protocol = atoi(argv[2]);
+    }else if (atoi(argv[1]) == 1){
+        g_motor[1].protocol = atoi(argv[2]);
+    }
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(change_protocol, change_protocol);
+
 int tor_test(int argc, char *argv[])
 {
 
@@ -515,12 +530,28 @@ int ttor_test_new(int argc, char *argv[])
     float torque,speed,power;
     float KT = 0.07f;
     float GR = (7056.f/361.f);
+    float target_current = 10.0f;
+
+    if (argc == 2) {
+        target_current = atof(argv[1]);
+    }
+    printf("target current: %.3f\n", target_current);
+
+    system("mkdir -p ../data");
+    
+    FILE *file = fopen("../data/current_torque.csv", "w");
+
+    if(!file)
+    {
+        printf("open file failed\n");
+    }
+
+    g_motor[1].protocol = 2;
 
     motor_enable( &g_motor[0], 1);
-    // motor_enable( &g_motor[1], 1);
+    motor_enable( &g_motor[1], 1);
 
-    // s_pid_vel(&g_motor[1], 10);
-
+    g_motor[1].pid.des = 3.0f;   // 根据电机相对方向修改，若反向则为正，同向则为负
     usleep(1000*200);
  
     printf("current, torque\n");
@@ -529,19 +560,26 @@ int ttor_test_new(int argc, char *argv[])
     int times = 1000 * 2;
     for (int i = 0; i < times; i++)
     {
-        current += (90.0f * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        current += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
         set_motor_tor(&g_motor[0], current*KT*GR);
         usleep(1000*10);
         get_dy200_info(&torque, &speed, &power);
         if(i <= (times/2) && i >=50){
-            printf("%.3f, %.3f\n", current, torque);
+            printf("%.3f, %.3f\n", current, torque * -1);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
+            if(file){
+                fprintf(file, "%.3f, %.3f\n", current, torque * -1);
+            }
         }
     }
 
-    // s_pid_vel(&g_motor[1], 0);
-
     motor_enable( &g_motor[0], 0);
-    // motor_enable( &g_motor[1], 0);
+    motor_enable( &g_motor[1], 0);
+
+    g_motor[1].pid.des = 0.0f;
+
+    g_motor[1].protocol = 0;
+
+    fclose(file);
 
     return 0;
 }
@@ -552,15 +590,29 @@ int a_max_speed_tor_test(int argc, char *argv[])
     float torque,speed,power;
     float KT = 0.07;
     float GR = (7056.f/361.f);
+    float target_current = 10.0f;
+
+    if (argc == 2) {
+        target_current = atof(argv[1]);
+    }
+    printf("target current: %.3f\n", target_current);
+
+    system("mkdir -p ../data");
+
+    FILE *file = fopen("../data/speed_torque.csv", "w");
+
+    if(!file)
+    {
+        printf("open file failed\n");
+    }
 
     motor_enable( &g_motor[0], 1);
     motor_enable( &g_motor[1], 1);
 
-    printf("torque, speed\n");
+    printf("speed, torque\n");
 
     float current1 = 0;
     float current2 = 0;
-    float target_current = 10.0f;
     int times = 1000 * 2;
 
     for (int i = 0; i < times / 2; i++)
@@ -574,12 +626,15 @@ int a_max_speed_tor_test(int argc, char *argv[])
 
     for (int i = 0; i < times; i++)
     {
-        current2 += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
-        set_motor_tor(&g_motor[1], current2*KT*GR);
+        current2 += (target_current * 1.3f / times * (i >= (times/2) ? -1 : 1)); // 根据电机相对大小修改，85-85：1，70-85：1.3，50-85：1.8
+        set_motor_tor(&g_motor[1], -current2*KT*GR);
         usleep(1000*10);
         get_dy200_info(&torque, &speed, &power);
-        if(i <= (times/2) && i >=50){
-            printf("%.3f, %.3f\n", torque, speed);
+        if(i <= (times/2)){
+            printf("%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, -1 * torque);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
+            if(file){
+                fprintf(file, "%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, -1 * torque);
+            }
         }
 
         // if(i <= (times/2)){
@@ -596,8 +651,10 @@ int a_max_speed_tor_test(int argc, char *argv[])
 
     printf("%.3f\n", current1);
 
-    // motor_enable( &g_motor[0], 0);
+    motor_enable( &g_motor[0], 0);
     motor_enable( &g_motor[1], 0);
+
+    fclose(file);
 
     return 0;
 }
