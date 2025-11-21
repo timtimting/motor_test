@@ -672,48 +672,40 @@ int extreme_condition_testing(int argc, char *argv[])
     }
     printf("target current: %.3f\n", target_current);
 
-    g_motor[1].protocol = 2;
-
     motor_enable( &g_motor[0], 1);
     motor_enable( &g_motor[1], 1);
 
-    g_motor[1].pid.des = 3.0f;
     usleep(1000*2000);
 
-    int loop_count = 0;
-
-    float current = 0;
-    float send_current = 0;
+    float current_1 = 0;
+    float current_2 = 0;
     // int times = 100 * 4 * 5;
-    int times = 100 * 2;
+    int times = 200 * 2 * 18;
     for (int i = 0; i < times; i++)
     {
-        current += (10 * 0.01 / 2.0 * M_PI * 2.0) * 0.5;
-        send_current = sin(current*KT*GR) * target_current * 10;
+        current_1 = ((-1 * target_current) + 1.0 * (rand()%RAND_MAX) / RAND_MAX * (target_current * 2)) * 2;
+        current_2 = ((-1 * target_current) + 1.0 * (rand()%RAND_MAX) / RAND_MAX * (target_current * 2)) * 2;
 
-        if(send_current > target_current)
-        {
-            send_current = target_current;
-        }
-        else if(send_current < -target_current)
-        {
-            send_current = -target_current;
-        }
-        set_motor_tor(&g_motor[0], send_current);
-        usleep(1000*100);
+        if(current_1 > target_current)
+            current_1 = target_current;
+        if(current_1 < -target_current)
+            current_1 = -target_current;
+
+        if(current_2 > target_current)
+            current_2 = target_current;
+        if(current_2 < -target_current) 
+            current_2 = -target_current;
+        
+        set_motor_tor(&g_motor[0], current_1);
+        set_motor_tor(&g_motor[0], current_2);
+        usleep(1000*50);
 
         // printf("time:%.3f\n\r", times / 10 / 60.0f);
-        printf("current:%.3f\n", send_current);
-
-        loop_count++;
+        printf("current:%.3f, %.3f\n", current_1, current_2);
     }
-
-    g_motor[1].pid.des = 0.0f;
 
     motor_enable( &g_motor[0], 0);
     motor_enable( &g_motor[1], 0);
-
-    g_motor[1].protocol = 0;
 
     return 0;
 }
