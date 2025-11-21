@@ -660,6 +660,65 @@ int a_max_speed_tor_test(int argc, char *argv[])
 }
 FINSH_FUNCTION_EXPORT(a_max_speed_tor_test, a_max_speed_tor_test);
 
+int extreme_condition_testing(int argc, char *argv[])
+{
+    float torque,speed,power;
+    float KT = 0.07;
+    float GR = (7056.f/361.f);
+    float target_current = 20.0f;
+
+    if (argc == 2) {
+        target_current = atof(argv[1]);
+    }
+    printf("target current: %.3f\n", target_current);
+
+    g_motor[1].protocol = 2;
+
+    motor_enable( &g_motor[0], 1);
+    motor_enable( &g_motor[1], 1);
+
+    g_motor[1].pid.des = 3.0f;
+    usleep(1000*2000);
+
+    int loop_count = 0;
+
+    float current = 0;
+    float send_current = 0;
+    // int times = 100 * 4 * 5;
+    int times = 100 * 2;
+    for (int i = 0; i < times; i++)
+    {
+        current += (10 * 0.01 / 2.0 * M_PI * 2.0) * 0.5;
+        send_current = sin(current*KT*GR) * target_current * 10;
+
+        if(send_current > target_current)
+        {
+            send_current = target_current;
+        }
+        else if(send_current < -target_current)
+        {
+            send_current = -target_current;
+        }
+        set_motor_tor(&g_motor[0], send_current);
+        usleep(1000*100);
+
+        // printf("time:%.3f\n\r", times / 10 / 60.0f);
+        printf("current:%.3f\n", send_current);
+
+        loop_count++;
+    }
+
+    g_motor[1].pid.des = 0.0f;
+
+    motor_enable( &g_motor[0], 0);
+    motor_enable( &g_motor[1], 0);
+
+    g_motor[1].protocol = 0;
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(extreme_condition_testing, extreme_condition_testing);
+
 int vesc_tor_test(int argc, char *argv[])
 {
     float torque,speed,power;
