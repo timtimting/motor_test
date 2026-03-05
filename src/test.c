@@ -12,8 +12,8 @@
 #include "math.h"
 // #include <linux/can.h>
 
-#define MOTOR_1_ID 1
-#define MOTOR_2_ID 2
+#define MOTOR_1_ID  2
+#define MOTOR_2_ID  1
 
 #define CAN_EFF_FLAG 0x80000000U /* EFF/SFF is set in the MSB */
 #define CAN_RTR_FLAG 0x40000000U /* remote transmission request */
@@ -125,19 +125,25 @@ int motor_test_can_call(void *arg, void *arg2, char *buf, int len)
     float p, v, t;
     motor_mit *motor = NULL;
 
-    // printf("can id:%d, dlc:%d\n", frame->can_id, frame->can_dlc);
+    // printf("can id:%d, dlc:%d, %d\n", frame->can_id, frame->can_dlc, frame->data[0]);
 
-    if (frame->data[0] == MOTOR_1_ID)
+    // if (frame->data[0] == (MOTOR_1_ID & 0x10))
+    if (frame->can_id == (MOTOR_1_ID | 0x10))
     {
         motor = &tmp[0];
     }
-    else if((frame->data[0] & 0xf) == (MOTOR_2_ID&0xf))
+    // else if(frame->data[0] == (MOTOR_2_ID & 0x10))
+    else if(frame->can_id == (MOTOR_2_ID | 0x10))
     {
        motor = &tmp[1];
     }
     else
     {
-        printf("%c", frame->data[0]);
+        printf("[%d]:", frame->can_id);
+        for(int i = 0; i < frame->can_dlc; i++){
+            printf("%c", frame->data[i]);
+        }
+        printf("\n\r");
         return 0;
     }
 
@@ -170,7 +176,7 @@ void *commu_thread(void *arg)
     {
         
         //usleep(1000*10);
-        delay_ms(10);
+        delay_ms(5);
 
         // motor_mit *motor = &tmp[0];
 
@@ -273,7 +279,7 @@ void *commu_thread(void *arg)
                         // printf("%.2f, %.2f, %.2f, %.2f\n", g_motor[1].pid.error, g_motor[1].pid.output, g_motor[1].pid.input, g_motor[1].pid.des);
                         // printf("%.2f\n", g_motor[1].pid.output);
 
-                        motor->control.t_ff = g_motor[1].pid.output * GR * KT;
+                        motor->control.t_ff = g_motor[1].pid.output;
                     }else{
                         motor->control.t_ff = 0;
 
@@ -294,11 +300,11 @@ void *commu_thread(void *arg)
                 // pthread_spin_unlock(&motor->lock);
                 
                 enable_last[i] = motor->motor_enable;
-                usleep(1000*1);
+                // usleep(1000*1);
             }
             
             
-            usleep(1000*10);
+            // usleep(1000*10);
         }
     }
     
@@ -315,12 +321,12 @@ int motor_test_init()
 
     g_motor[0].param.max_pos = 12.5;
     g_motor[0].param.max_vel = 45;
-    g_motor[0].param.max_torque = 80;  // 根据测试电机修改 
+    g_motor[0].param.max_torque = 40;  // 根据测试电机修改 
     g_motor[0].protocol = 0;
 
     g_motor[1].param.max_pos = 12.5;
     g_motor[1].param.max_vel = 45;
-    g_motor[1].param.max_torque = 160;
+    g_motor[1].param.max_torque = 40;
     g_motor[1].protocol = 0;
 
     g_motor[0].can = can_commu_init("can0", "can0", 0, 0xffff, motor_test_can_call, (void *)g_motor, NULL, 0);
@@ -333,11 +339,11 @@ int motor_test_init()
 
     g_motor[1].control.kp = 0.0;
     g_motor[1].control.kd = 0.0;
-    g_motor[1].pid.kp = 1.5;
-    g_motor[1].pid.ki = 0.25;
-    g_motor[1].pid.output_max = 90.0;
+    g_motor[1].pid.kp = 0.5;
+    g_motor[1].pid.ki = 0.1;
+    g_motor[1].pid.output_max = 40.0;
     g_motor[1].pid.error_all_max = g_motor[1].pid.output_max / g_motor[1].pid.ki;
-    g_motor[1].pid.error_max = 10.0;
+    g_motor[1].pid.error_max = 4.0;
 
     pthread_spin_init(&g_motor[0].lock, 0);
     g_motor[0].can_tx.can_dlc = 8;
@@ -551,7 +557,7 @@ int ttor_test_new(int argc, char *argv[])
     motor_enable( &g_motor[0], 1);
     motor_enable( &g_motor[1], 1);
 
-    g_motor[1].pid.des = 3.0f;   // 根据电机相对方向修改，若反向则为正，同向则为负
+    g_motor[1].pid.des = 5.0f;   // 根据电机相对方向修改，若反向则为正，同向则为负
     usleep(1000*200);
  
     printf("current, torque\n");
@@ -561,13 +567,13 @@ int ttor_test_new(int argc, char *argv[])
     for (int i = 0; i < times; i++)
     {
         current += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
-        set_motor_tor(&g_motor[0], current*KT*GR);
+        set_motor_tor(&g_motor[0], current);
         usleep(1000*10);
         get_dy200_info(&torque, &speed, &power);
         if(i <= (times/2) && i >=50){
-            printf("%.3f, %.3f\n", current, torque * -1);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
+            printf("%.3f, %.3f\n", current, torque);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
             if(file){
-                fprintf(file, "%.3f, %.3f\n", current, torque * -1);
+                fprintf(file, "%.3f, %.3f\n", current, torque);
             }
         }
     }
@@ -584,6 +590,64 @@ int ttor_test_new(int argc, char *argv[])
     return 0;
 }
 FINSH_FUNCTION_EXPORT(ttor_test_new, ttor_test_new);
+
+int vves_test(int argc, char *argv[])
+{
+    float target_current = 10.0f;
+
+    if (argc == 2) {
+        target_current = atof(argv[1]);
+    }
+    printf("target current: %.3f\n", target_current);
+
+    g_motor[1].protocol = 2;
+    g_motor[1].pid.kp = atof(argv[2]);
+    g_motor[1].pid.ki = atof(argv[3]);
+
+    printf("kp:%.3f", g_motor[1].pid.kp);
+    printf("ki:%.3f", g_motor[1].pid.ki);
+
+    motor_enable( &g_motor[1], 1);
+
+    g_motor[1].pid.des = 3.0f;   // 根据电机相对方向修改，若反向则为正，同向则为负
+    usleep(1000*200);
+ 
+    printf("current, torque\n");
+
+    float current = 0;
+    int times = 1000 * 1;
+    for (int i = 0; i < times; i++)
+    {
+        current += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
+        // set_motor_tor(&g_motor[0], current);
+        usleep(1000*10);
+    }
+
+    motor_enable( &g_motor[1], 0);
+
+    g_motor[1].pid.des = 0.0f;
+
+    g_motor[1].protocol = 0;
+
+    return 0;
+}
+FINSH_FUNCTION_EXPORT(vves_test, vves_test);
+
+int p2_v(int argc, char *argv[])
+{
+    float ves = g_motor[1].state.v;
+
+    int times = 1000 * 5;
+    for (int i = 0; i < times; i++)
+    {
+        printf("m2_v:%.3f\n\r", ves);
+        usleep(1000*10);
+    }
+
+    return 0;
+
+}
+FINSH_FUNCTION_EXPORT(p2_v, p2_v);
 
 int a_max_speed_tor_test(int argc, char *argv[])
 {
@@ -618,7 +682,7 @@ int a_max_speed_tor_test(int argc, char *argv[])
     for (int i = 0; i < times / 2; i++)
     {
         current1 += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
-        set_motor_tor(&g_motor[0], current1*KT*GR);
+        set_motor_tor(&g_motor[0], current1);
         usleep(1000*10);
     }
 
@@ -626,14 +690,14 @@ int a_max_speed_tor_test(int argc, char *argv[])
 
     for (int i = 0; i < times; i++)
     {
-        current2 += (target_current * 1.3f / times * (i >= (times/2) ? -1 : 1)); // 根据电机相对大小修改，85-85：1，70-85：1.3，50-85：1.8
-        set_motor_tor(&g_motor[1], -current2*KT*GR);
+        current2 += (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1)); // 根据电机相对大小修改，85-85：1，70-85：1.3，50-85：1.8
+        set_motor_tor(&g_motor[1], current2);
         usleep(1000*10);
         get_dy200_info(&torque, &speed, &power);
         if(i <= (times/2)){
-            printf("%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, -1 * torque);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
+            printf("%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, 1 * torque);  // 修改扭矩正负输出，前面的系数根据扭矩输出修改
             if(file){
-                fprintf(file, "%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, -1 * torque);
+                fprintf(file, "%.3f, %.3f\n", g_motor[0].state.v * 30.0f / M_PI, 1 * torque);
             }
         }
 
@@ -645,7 +709,7 @@ int a_max_speed_tor_test(int argc, char *argv[])
     for (int i = 0; i < times / 2; i++)
     {
         current1 -= (target_current * 2.0f / times * (i >= (times/2) ? -1 : 1));
-        set_motor_tor(&g_motor[0], current1*KT*GR);
+        set_motor_tor(&g_motor[0], current1);
         usleep(1000*10);
     }
 
