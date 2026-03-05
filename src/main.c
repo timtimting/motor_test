@@ -16,7 +16,7 @@ int main() {
     motor_enable();
     printf("motor enabled!\n");
 
-    sleep(10);
+    sleep(3);
 
     printf("motor disabled!\n");
     motor_disable();
