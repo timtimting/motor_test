@@ -1,28 +1,26 @@
 #include <unistd.h>
 #include <stdio.h>
-#include "torque_sensor.h"
 #include "common.h"
 #include "can_thread.h"
-#include "finsh.h"
 
-int main(){
+int main() {
+    extern int motor_init();
+    if (motor_init() != 0) {
+        printf("motor init failed!\n");
+        return -1;
+    }else{
+        printf("motor init success!\n");
+    }
 
-    // printf("motor test \n");
-    // if(dy200_init("/dev/ttyUSB0", 115200))
-    //     return -1;
+    sleep(1);
+    motor_enable();
+    printf("motor enabled!\n");
 
-    // float torque,speed,power;
-        
-    // while(1){
-    //     usleep(1000*100);
-    //     get_dy200_info(&torque, &speed, &power);
-    //     printf("torque:%.3f, speed:%.3f, power:%.3f\n", torque, speed, power);
-    // }
+    sleep(10);
 
-    extern int motor_test_init();
+    printf("motor disabled!\n");
+    motor_disable();
 
-    motor_test_init();
-
-
-    return finsh();
+    sleep(1);
+    return 0;
 }

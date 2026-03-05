@@ -38,12 +38,6 @@ int can_creat_tx_socket(char *dev_name, int *socket_fd)
         goto error;
     }
 
-    // if (0 > setsockopt(*socket_fd, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0))
-    // {
-    //     printf("can setsockopt failed\n");
-    //     goto error;
-    // }
-
     return 0;
 
 error:
@@ -80,14 +74,6 @@ int can_creat_rx_socket(char *dev_name, int *socket_fd, uint16_t id, uint16_t id
         printf("can bind failed\n");
         goto error;
     }
-
-    // rfilter[0].can_id = id & id_mask;
-    // rfilter[0].can_mask = CAN_SFF_MASK & id_mask;
-    // if (0 > setsockopt(*socket_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &rfilter, sizeof(rfilter)))
-    // {
-    //     printf("can setsockopt failed\n");
-    //     goto error;
-    // }
 
     return 0;
 
@@ -165,17 +151,7 @@ int can_interface_send(mHandle _handle, char *buf, int len)
 {
     can_handle_t *handle = (can_handle_t *)_handle;
 
-    // int i;
-    // printf("can send:\n");
-    // for (i = 0; i < len; i++)
-    // {
-    //     printf("%02x ", buf[i]);
-    // }
-    // printf("\n");
-    
-
     return send(handle->fd, buf, len, 0);
-    //return write(handle->fd, buf, len);
 }
 
 int can_interface_recv(mHandle _handle, char *buf, int len, int nodelay)
@@ -183,5 +159,4 @@ int can_interface_recv(mHandle _handle, char *buf, int len, int nodelay)
     can_handle_t *handle = (can_handle_t *)_handle;
 
     return recv(handle->fd, buf, len, nodelay ? MSG_DONTWAIT : 0);
-    //return read(handle->fd, buf, len);
 }

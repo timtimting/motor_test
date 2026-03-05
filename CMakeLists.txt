@@ -7,9 +7,6 @@ SET(EXECUTABLE_OUTPUT_PATH ./bin)
 
 add_compile_options(-Wall  -g -fdiagnostics-color=auto -fPIC)
 
-include_directories(./src ./libfinsh)
-
-aux_source_directory(./libfinsh DIR_SRC)
 aux_source_directory(./src DIR_SRC)
 # aux_source_directory(./example DIR_EXAMPLE)
 

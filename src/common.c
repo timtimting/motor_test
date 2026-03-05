@@ -35,10 +35,6 @@ void delay_us(uint32_t us)
 
 void delay_ms(uint32_t ms)
 {
-    // while (ms--)
-    // {
-    //     usleep(1000);
-    // }
     delay_us(ms * 1000);
 }
 
